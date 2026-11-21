@@ -34,6 +34,11 @@ final class UsageTests: XCTestCase {
         XCTAssertEqual(usage.menuBarTitle, "23% · 41%")
     }
 
+    func testSkipsLimitWithoutPercent() throws {
+        let json = #"{"limits": [{"kind": "weekly_all", "group": "weekly", "percent": null}, {"kind": "x", "group": "weekly", "percent": 7}]}"#
+        XCTAssertEqual(try Usage.decode(Data(json.utf8)).menuBarTitle, "7%")
+    }
+
     func testEmptyResponse() throws {
         XCTAssertEqual(try Usage.decode(Data("{}".utf8)).menuBarTitle, "–")
     }

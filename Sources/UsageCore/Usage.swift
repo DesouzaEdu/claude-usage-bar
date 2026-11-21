@@ -21,9 +21,9 @@ public struct Usage: Decodable, Equatable {
             public struct Model: Decodable, Equatable { public let displayName: String? }
             public let model: Model?
         }
-        public let kind: String
+        public let kind: String?
         public let group: String?
-        public let percent: Double
+        public let percent: Double?
         public let resetsAt: Date?
         public let scope: Scope?
     }
@@ -50,11 +50,12 @@ public struct Usage: Decodable, Equatable {
 
     public var rows: [UsageRow] {
         if let limits, !limits.isEmpty {
-            return limits.map { limit in
-                let group = limit.group ?? limit.kind
+            return limits.compactMap { limit in
+                guard let percent = limit.percent else { return nil }
+                let group = limit.group ?? limit.kind ?? "limit"
                 let name = group.replacingOccurrences(of: "_", with: " ").capitalized
                 let model = limit.scope?.model?.displayName.map { " · \($0)" } ?? ""
-                return UsageRow(group: group, title: name + model, percent: limit.percent, resetsAt: limit.resetsAt)
+                return UsageRow(group: group, title: name + model, percent: percent, resetsAt: limit.resetsAt)
             }
         }
         let legacy: [(String, String, Window?)] = [

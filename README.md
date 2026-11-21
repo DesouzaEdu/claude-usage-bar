@@ -56,7 +56,7 @@ open dist/ClaudeUsageBar.app
 
 ## Releases
 
-CI runs tests and builds the app on every push and pull request. Pushing a tag `vX.Y.Z` builds a universal app and publishes it as a GitHub release.
+CI runs tests and builds the app on every push to main and on every pull request. Pushing a tag `vX.Y.Z` builds a universal app and publishes it as a GitHub release.
 
 ## License
 

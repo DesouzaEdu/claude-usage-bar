@@ -8,7 +8,7 @@ struct ClaudeUsageBarApp: App {
     var body: some Scene {
         MenuBarExtra {
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(model.usage?.rows ?? [], id: \.title) { row in
+                ForEach(Array((model.usage?.rows ?? []).enumerated()), id: \.offset) { _, row in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(row.title).font(.headline)
@@ -75,7 +75,7 @@ struct UsageError: LocalizedError {
 }
 
 func fetchUsage() async throws -> Usage {
-    guard let token = readToken() else { throw UsageError("Not logged in: run `claude` and /login") }
+    guard let token = readToken() else { throw UsageError("Not logged in: run claude and /login") }
     var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
