@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test
+      - name: Build universal app
+        run: scripts/bundle.sh --arch arm64 --arch x86_64
+      - name: Check bundle
+        run: |
+          lipo -archs dist/ClaudeUsageBar.app/Contents/MacOS/ClaudeUsageBar | grep -q 'x86_64 arm64'
+          codesign --verify dist/ClaudeUsageBar.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClaudeUsageBar
+          path: dist/ClaudeUsageBar.zip
