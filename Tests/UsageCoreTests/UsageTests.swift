@@ -57,4 +57,39 @@ final class UsageTests: XCTestCase {
         XCTAssertEqual(resetDescription(now.addingTimeInterval(-60), now: now), "resets in 0m")
         XCTAssertEqual(resetDescription(nil, now: now), "")
     }
+
+    func testProjection() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let day: TimeInterval = 86400
+        func weekly(_ percent: Double, daysLeft: Double) -> UsageRow {
+            UsageRow(group: "weekly", title: "Weekly", percent: percent, resetsAt: now.addingTimeInterval(daysLeft * day))
+        }
+        // 2 of 7 days elapsed at 20%: ends near 70%.
+        XCTAssertEqual(projection(for: weekly(20, daysLeft: 5), now: now), .lasts(percentAtReset: 70))
+        // 2 days elapsed at 50%: 25% a day, hits 100% two days from now.
+        XCTAssertEqual(projection(for: weekly(50, daysLeft: 5), now: now), .runsOut(at: now.addingTimeInterval(2 * day)))
+        XCTAssertEqual(projection(for: weekly(100, daysLeft: 3), now: now), .runsOut(at: now))
+        // Too early in the window, unknown group, or no reset date: no guess.
+        XCTAssertNil(projection(for: weekly(5, daysLeft: 6.9), now: now))
+        XCTAssertNil(projection(for: UsageRow(group: "monthly", title: "M", percent: 10, resetsAt: now.addingTimeInterval(day)), now: now))
+        XCTAssertNil(projection(for: UsageRow(group: "weekly", title: "W", percent: 10, resetsAt: nil), now: now))
+        // Session window is 5h: 1h elapsed at 10% ends near 50%.
+        let session = UsageRow(group: "session", title: "Session", percent: 10, resetsAt: now.addingTimeInterval(4 * 3600))
+        XCTAssertEqual(projection(for: session, now: now), .lasts(percentAtReset: 50))
+    }
+
+    func testAlerts() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(5 * 86400)
+        let calm = UsageRow(group: "weekly", title: "Weekly", percent: 20, resetsAt: reset)
+        let fast = UsageRow(group: "weekly", title: "Weekly", percent: 50, resetsAt: reset)
+        let high = UsageRow(group: "weekly", title: "Weekly", percent: 92, resetsAt: reset)
+        XCTAssertEqual(alertLevel(for: calm, now: now), .none)
+        XCTAssertEqual(alertLevel(for: fast, now: now), .pace)
+        XCTAssertEqual(alertLevel(for: high, now: now), .high)
+        XCTAssertEqual(alerts(for: [calm, fast, high], now: now).map(\.level), [.pace, .high])
+        // Same limit, window and level give the same key; another level does not.
+        XCTAssertEqual(alerts(for: [fast], now: now).first?.key, alerts(for: [fast], now: now.addingTimeInterval(60)).first?.key)
+        XCTAssertNotEqual(alerts(for: [fast], now: now).first?.key, alerts(for: [high], now: now).first?.key)
+    }
 }
