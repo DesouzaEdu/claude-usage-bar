@@ -6,18 +6,18 @@ A tiny macOS menu bar app that shows your Claude plan usage, the same numbers as
 
 ```
 ✳︎ 23% · 41%            ← highest session % · highest weekly %
-┌────────────────────────────────┐
-│ Session                    23% │
-│ ████░░░░░░░░░░░░░░░░░░░░░░░░░░ │
-│ resets in 2h 14m               │
-│ Weekly                     41% │
-│ ████████████░░░░░░░░░░░░░░░░░░ │
-│ resets in 6d 16h               │
-│ Updated 10:19  [Refresh] [Quit]│
-└────────────────────────────────┘
+┌──────────────────────────────────────┐
+│ Session                          23% │
+│ ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │
+│ resets in 2h 14m · Sat 21 Nov, 15:00 │
+│ Weekly                           41% │
+│ ███████████████░░░░░░░░░░░░░░░░░░░░░ │
+│ resets in 6d 16h · Sat 28 Nov, 03:00 │
+│ Updated 10:19        [Refresh] [Quit]│
+└──────────────────────────────────────┘
 ```
 
-Bars turn orange at 70% and red at 90%. It refreshes every 5 minutes, or right away with Refresh (⌘R).
+Each bar shows the countdown and the exact reset date and time in your locale. Bars turn orange at 70% and red at 90%. It refreshes every 5 minutes, or right away with Refresh (⌘R).
 
 ## Install
 
