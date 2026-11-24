@@ -8,6 +8,8 @@ static class Program
         ApplicationConfiguration.Initialize();
         var i = Array.IndexOf(args, "--snapshot");
         if (i >= 0 && i + 1 < args.Length) return Snapshot.Render(args[i + 1]) ? 0 : 1;
+        var h = Array.IndexOf(args, "--snapshot-hover");
+        if (h >= 0 && h + 1 < args.Length) return Snapshot.Render(args[h + 1], hover: true) ? 0 : 1;
 
         // One tray icon per user session: a second launch (e.g. login item plus a manual start) just exits.
         using var mutex = new Mutex(true, @"Local\ClaudeUsageBar", out var first);

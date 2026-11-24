@@ -35,13 +35,14 @@ Requires macOS 13+ and [Claude Code](https://docs.claude.com/en/docs/claude-code
 
 ## Windows
 
-<p align="center"><img src="docs/screenshot-windows.png" width="280" alt="Windows panel with usage bars, reset times and pace projection"></p>
+<p align="center"><img src="docs/screenshot-windows-hover.png" width="260" alt="Windows hover card with a bar per limit"> <img src="docs/screenshot-windows.png" width="280" alt="Windows panel with usage bars, reset times and pace projection"></p>
 
 The same app for the Windows system tray, with the same panel, pace projection and alerts:
 
-- the tray icon shows the session %; hover it for every limit. It turns orange when a limit's pace runs out before its reset and red from 90% used;
-- each bar also shows where the current pace ends at reset (hatched), ticks at 70% and 90%, and a white marker for how much of the window has passed: a fill left of the marker means you are using less than an even pace;
-- click the icon for the panel; Refresh is also Ctrl+R and Quit Ctrl+Q. Right-click the icon for Refresh, Open at login and Quit;
+- the tray icon shows an orange `✳︎` above the session %. The number turns yellow from 50%, orange from 70% and red from 90%;
+- hover the icon for a card with a progress bar per limit; click it for the full panel. Bars go green, yellow, orange and red at 50, 70 and 90%;
+- each bar also shows where the current pace ends at reset (hatched), ticks at 50, 70 and 90%, and a white marker for how much of the window has passed: a fill left of the marker means you are using less than an even pace;
+- in the panel, Refresh is also Ctrl+R and Quit Ctrl+Q. Right-click the icon for Refresh, Open at login and Quit;
 - alerts arrive as Windows notifications, once per limit window, also across restarts;
 - open at login uses the per-user `Run` registry key, so it needs no admin rights. The app turns it on at first launch.
 
@@ -88,6 +89,7 @@ On Windows, with the [.NET 10 SDK](https://dotnet.microsoft.com/download):
 dotnet test windows/UsageCore.Tests        # the same tests as Tests/UsageCoreTests, ported
 pwsh windows/build.ps1                     # builds dist/windows/ClaudeUsageBar.exe and dist/ClaudeUsageBar-windows-x64.zip
 dotnet run --project windows/ClaudeUsageBar -- --snapshot docs/screenshot-windows.png   # redraws the Windows screenshot
+dotnet run --project windows/ClaudeUsageBar -- --snapshot-hover docs/screenshot-windows-hover.png   # redraws the hover card
 pwsh windows/make-ico.ps1                  # rebuilds the Windows icon from docs/icon.png
 ```
 

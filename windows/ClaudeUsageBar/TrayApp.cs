@@ -1,7 +1,4 @@
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using System.Globalization;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using UsageCore;
 
@@ -19,6 +16,10 @@ sealed class TrayApp : ApplicationContext
     Icon? icon;
     DateTime panelHiddenAt;
     bool refreshing;
+    readonly HoverCard hover = new();
+    readonly System.Windows.Forms.Timer hoverTimer = new() { Interval = 100 };
+    Point lastHoverPos;
+    DateTime lastHoverAt, hoverStartedAt;
 
     PanelState View => panel.State;
 
@@ -53,6 +54,8 @@ sealed class TrayApp : ApplicationContext
         menu.Opening += (_, _) => loginMenuItem.Checked = View.OpensAtLogin;
         tray.ContextMenuStrip = menu;
         tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) TogglePanel(); };
+        tray.MouseMove += (_, _) => OnTrayMouseMove();
+        hoverTimer.Tick += (_, _) => OnHoverTick();
 
         timer.Tick += (_, _) => _ = RefreshAsync();
         timer.Start();
@@ -65,6 +68,7 @@ sealed class TrayApp : ApplicationContext
 
     void TogglePanel()
     {
+        hover.Hide();
         if (panel.Visible) { panel.Hide(); return; }
         // Clicking the icon while the panel is open first deactivates (hides) it; don't reopen on that same click.
         if ((DateTime.UtcNow - panelHiddenAt).TotalMilliseconds < 300) return;
@@ -99,6 +103,8 @@ sealed class TrayApp : ApplicationContext
             icon?.Dispose();
             timer.Dispose();
             retryTimer.Dispose();
+            hoverTimer.Dispose();
+            hover.Dispose();
             panel.Dispose();
         }
         base.Dispose(disposing);
@@ -138,29 +144,45 @@ sealed class TrayApp : ApplicationContext
         }
     }
 
-    AlertLevel Level => (View.Usage?.Rows ?? []).Select(r => Pace.AlertLevel(r, DateTimeOffset.Now)).DefaultIfEmpty(AlertLevel.None).Max();
-
     void UpdateTray()
     {
-        var usage = View.Usage;
-        var level = Level;
-        // The tray only fits a square icon, so it shows the first limit (the session) and the tooltip has the rest.
-        var top = usage is null ? [] : Usage.TopPerGroup(usage.Rows);
-        var label = usage is null ? (View.Error is null ? "…" : "!") : top.Count == 0 ? "–" : UsageFormat.Round(top[0].Percent).ToString(CultureInfo.InvariantCulture);
+        // The icon shows the session (the first limit group); the hover card has every limit.
+        var top = View.Usage is { } usage ? Usage.TopPerGroup(usage.Rows) : [];
         var old = icon;
-        icon = TrayIcon.Render(label, usage is null && View.Error is not null ? AlertLevel.High : level);
+        icon = TrayIcon.Render(top.Count > 0 ? top[0].Percent : null, error: View.Usage is null && View.Error is not null);
         tray.Icon = icon;
         old?.Dispose();
-
-        var title = usage is null ? (View.Error is null ? "✳ …" : "⚠") : (level == AlertLevel.None ? "✳ " : "⚠ ") + usage.MenuBarTitle;
-        var lines = new List<string> { $"Claude {title}" };
-        if (usage is not null)
-            lines.AddRange(usage.Rows.Select(r => $"{r.Title}: {UsageFormat.Round(r.Percent)}%"));
-        else if (View.Error is not null)
-            lines.Add(View.Error);
-        var text = string.Join("\n", lines);
-        tray.Text = text.Length > 127 ? text[..126] + "…" : text; // NotifyIcon caps the tooltip at 127 chars
+        // The hover card replaces the text tooltip; an empty text keeps Windows from showing both.
+        tray.Text = "";
+        if (hover.Visible) hover.UpdateView(View);
     }
+
+    void OnTrayMouseMove()
+    {
+        if (!hoverTimer.Enabled) { hoverStartedAt = DateTime.UtcNow; hoverTimer.Start(); }
+        lastHoverPos = Cursor.Position;
+        lastHoverAt = DateTime.UtcNow;
+    }
+
+    /// <summary>NotifyIcon has no mouse-leave event: the pointer has left once it moved and the icon stopped
+    /// reporting moves. A short delay before showing keeps the card from flashing when passing by.</summary>
+    void OnHoverTick()
+    {
+        var now = DateTime.UtcNow;
+        var over = Cursor.Position == lastHoverPos || (now - lastHoverAt).TotalMilliseconds < 200;
+        if (!over || panel.Visible || tray.ContextMenuStrip!.Visible)
+        {
+            hover.Hide();
+            hoverTimer.Stop();
+            return;
+        }
+        if (!hover.Visible && (now - hoverStartedAt).TotalMilliseconds >= 300)
+        {
+            hover.UpdateView(View);
+            hover.ShowNear(lastHoverPos);
+        }
+    }
+
 
     /// <summary>Shows each alert once per limit window; sent keys are kept in the state file.</summary>
     void Notify(IReadOnlyList<UsageAlert> alerts)
@@ -188,54 +210,3 @@ sealed class TrayApp : ApplicationContext
     }
 }
 
-static class TrayIcon
-{
-    /// <summary>Draws the percentage into the square tray icon: plain text in the taskbar's color, or
-    /// white on orange/red when a limit runs out early or passes 90%, like the macOS menu bar.</summary>
-    public static Icon Render(string text, AlertLevel level)
-    {
-        var size = SystemInformation.SmallIconSize.Width;
-        using var bitmap = new Bitmap(size, size);
-        using (var g = Graphics.FromImage(bitmap))
-        {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            Color? background = level switch
-            {
-                AlertLevel.Pace => Color.FromArgb(0xFF, 0x9F, 0x0A),
-                AlertLevel.High => Color.FromArgb(0xFF, 0x45, 0x3A),
-                _ => null,
-            };
-            if (background is { } bg)
-            {
-                using var brush = new SolidBrush(bg);
-                using var path = RoundedRect(new RectangleF(0, 0, size, size), size / 4f);
-                g.FillPath(brush, path);
-            }
-            var fore = background is not null ? Color.White : WindowsTheme.TaskbarDark ? Color.White : Color.Black;
-            var em = size * (text.Length >= 3 ? 0.5f : 0.72f);
-            using var font = new Font("Segoe UI", em, FontStyle.Bold, GraphicsUnit.Pixel);
-            using var textBrush = new SolidBrush(fore);
-            using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            g.DrawString(text, font, textBrush, new RectangleF(-size / 4f, 0, size * 1.5f, size + size / 16f), format);
-        }
-        var handle = bitmap.GetHicon();
-        try { return (Icon)Icon.FromHandle(handle).Clone(); }
-        finally { DestroyIcon(handle); }
-    }
-
-    static GraphicsPath RoundedRect(RectangleF r, float radius)
-    {
-        var path = new GraphicsPath();
-        var d = radius * 2;
-        path.AddArc(r.X, r.Y, d, d, 180, 90);
-        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
-
-    [DllImport("user32.dll")]
-    static extern bool DestroyIcon(IntPtr handle);
-}
