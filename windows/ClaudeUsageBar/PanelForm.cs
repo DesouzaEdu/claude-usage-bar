@@ -97,25 +97,34 @@ sealed class PanelForm : Form
     /// <summary>Re-reads the theme and DPI; fonts and buttons follow.</summary>
     public void ApplyStyle()
     {
-        scale = fixedScale ?? DeviceDpi / 96f;
         theme = fixedDark ?? WindowsTheme.AppsDark ? Theme.Dark : Theme.Light;
-        foreach (var f in new[] { titleFont, bodyFont, captionFont, iconFont }) f?.Dispose();
-        titleFont = new Font("Segoe UI Semibold", 13 * scale, GraphicsUnit.Pixel);
-        bodyFont = new Font("Segoe UI", 13 * scale, GraphicsUnit.Pixel);
-        captionFont = new Font("Segoe UI", 11 * scale, GraphicsUnit.Pixel);
-        iconFont = new Font("Segoe MDL2 Assets", 12 * scale, GraphicsUnit.Pixel);
+        var newScale = fixedScale ?? DeviceDpi / 96f;
+        // Fonts are only rebuilt when the scale changes. Control.Font compares fonts by value, so assigning an
+        // equal new font keeps the old object: disposing it here would leave the buttons painting with a
+        // disposed font ("Parameter is not valid" on the first click on the tray icon).
+        if (titleFont is null || newScale != scale)
+        {
+            scale = newScale;
+            Font?[] old = [titleFont, bodyFont, captionFont, iconFont];
+            titleFont = new Font("Segoe UI Semibold", 13 * scale, GraphicsUnit.Pixel);
+            bodyFont = new Font("Segoe UI", 13 * scale, GraphicsUnit.Pixel);
+            captionFont = new Font("Segoe UI", 11 * scale, GraphicsUnit.Pixel);
+            iconFont = new Font("Segoe MDL2 Assets", 12 * scale, GraphicsUnit.Pixel);
+            refresh.Font = bodyFont;
+            gear.Font = iconFont;
+            foreach (var f in old) f?.Dispose();
+        }
 
         BackColor = theme.Back;
+        var hoverBack = theme == Theme.Dark ? Color.FromArgb(0x3A, 0x3A, 0x3A) : Color.FromArgb(0xEC, 0xEC, 0xEC);
         foreach (var b in new[] { refresh, gear })
         {
             b.BackColor = theme.Button;
             b.ForeColor = theme.Fore;
             b.FlatAppearance.BorderColor = theme.Border;
-            b.FlatAppearance.MouseOverBackColor = ControlPaint.Light(theme.Button, theme == Theme.Dark ? 0.2f : -0.05f);
+            b.FlatAppearance.MouseOverBackColor = hoverBack;
         }
-        refresh.Font = bodyFont;
-        gear.Font = iconFont;
-        gearMenu.Renderer = new ToolStripProfessionalRenderer();
+        gearMenu.Renderer ??= new ToolStripProfessionalRenderer();
     }
 
     /// <summary>Lays the panel out for the current <see cref="State"/> and repaints it.</summary>

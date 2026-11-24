@@ -124,12 +124,16 @@ sealed class HoverCard : Form
 
     void ApplyStyle()
     {
-        scale = fixedScale ?? DeviceDpi / 96f;
         theme = fixedDark ?? WindowsTheme.AppsDark ? Theme.Dark : Theme.Light;
-        titleFont?.Dispose();
-        captionFont?.Dispose();
-        titleFont = new Font("Segoe UI Semibold", 12 * scale, GraphicsUnit.Pixel);
-        captionFont = new Font("Segoe UI", 11 * scale, GraphicsUnit.Pixel);
+        var newScale = fixedScale ?? DeviceDpi / 96f;
+        if (titleFont is null || newScale != scale)
+        {
+            scale = newScale;
+            titleFont?.Dispose();
+            captionFont?.Dispose();
+            titleFont = new Font("Segoe UI Semibold", 12 * scale, GraphicsUnit.Pixel);
+            captionFont = new Font("Segoe UI", 11 * scale, GraphicsUnit.Pixel);
+        }
         BackColor = theme.Back;
     }
 
