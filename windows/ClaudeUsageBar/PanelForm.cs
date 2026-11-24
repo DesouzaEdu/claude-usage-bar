@@ -211,8 +211,9 @@ sealed class PanelForm : Form
             }
             y += h + S(4);
 
-            if (g != null) DrawBar(g, new Rectangle(pad, y, width, S(6)), row.Percent);
-            y += S(6);
+            y += S(3); // room for the time marker, which sticks out of the bar
+            if (g != null) DrawBar(g, new Rectangle(pad, y, width, S(BarHeight)), row, now);
+            y += S(BarHeight) + S(3);
 
             if (row.ResetsAt is { } resetsAt)
                 y += S(4) + Line($"{UsageFormat.ResetDescription(resetsAt, now)} · {When(resetsAt)}", captionFont, theme.Secondary, y + S(4));
@@ -247,24 +248,74 @@ sealed class PanelForm : Form
         return y + buttonHeight + pad;
     }
 
-    void DrawBar(Graphics g, Rectangle r, double percent)
+    const int BarHeight = 12;
+
+    /// <summary>The usage bar: a gradient fill for what is used, a translucent extension up to where the
+    /// current pace ends at reset, faint ticks at the 70% and 90% color thresholds, and a marker for how
+    /// much of the window has passed (being left of it means using less than an even pace).</summary>
+    void DrawBar(Graphics g, Rectangle r, UsageRow row, DateTimeOffset now)
     {
-        using var track = new SolidBrush(theme.Track);
-        FillCapsule(g, track, r);
-        var filled = (int)Math.Round(r.Width * Math.Clamp(percent, 0, 100) / 100);
-        if (filled <= 0) return;
-        using var fill = new SolidBrush(percent >= 90 ? theme.Red : percent >= 70 ? theme.Orange : theme.Blue);
-        FillCapsule(g, fill, new Rectangle(r.X, r.Y, Math.Max(filled, r.Height), r.Height));
+        var percent = Math.Clamp(row.Percent, 0, 100);
+        var color = percent >= 90 ? theme.Red : percent >= 70 ? theme.Orange : theme.Blue;
+        int X(double p) => r.X + (int)Math.Round(r.Width * Math.Clamp(p, 0, 100) / 100);
+
+        using var trackPath = Capsule(r);
+        using (var track = new SolidBrush(theme.Track)) g.FillPath(track, trackPath);
+        var clip = g.Clip;
+        g.SetClip(trackPath);
+
+        using (var tick = new Pen(Color.FromArgb(70, theme.Fore), Math.Max(1, S(1))))
+            foreach (var threshold in new[] { 70, 90 }) g.DrawLine(tick, X(threshold), r.Top, X(threshold), r.Bottom);
+
+        var projected = Pace.Projection(row, now) switch
+        {
+            Projection.Lasts lasts => lasts.PercentAtReset,
+            Projection.RunsOut => 100,
+            _ => percent,
+        };
+        if (projected > percent)
+        {
+            var ghostColor = projected >= 90 ? theme.Red : projected >= 70 ? theme.Orange : color;
+            using var ghost = new HatchBrush(HatchStyle.WideUpwardDiagonal, Color.FromArgb(110, ghostColor), Color.FromArgb(45, ghostColor));
+            g.FillRectangle(ghost, Rectangle.FromLTRB(X(percent) - r.Height, r.Top, X(projected), r.Bottom));
+        }
+
+        if (percent > 0)
+        {
+            var fillRect = new Rectangle(r.X, r.Y, Math.Max(X(percent) - r.X, r.Height), r.Height);
+            using var fillPath = Capsule(fillRect);
+            using var fill = new LinearGradientBrush(fillRect, ControlPaint.Light(color, 0.6f), color, LinearGradientMode.Horizontal);
+            g.FillPath(fill, fillPath);
+            // Soft highlight on the upper half for depth.
+            using var shine = new LinearGradientBrush(new Rectangle(r.X, r.Y, r.Width, r.Height / 2 + 1),
+                Color.FromArgb(90, Color.White), Color.FromArgb(0, Color.White), LinearGradientMode.Vertical);
+            g.FillRectangle(shine, fillRect.X, fillRect.Y, fillRect.Width, r.Height / 2);
+        }
+        g.Clip = clip;
+
+        // Time marker: share of the window already elapsed.
+        if (row.ResetsAt is { } resetsAt && Pace.WindowLength(row.Group) is { } length)
+        {
+            var elapsed = 100 * (1 - (resetsAt - now).TotalSeconds / length.TotalSeconds);
+            if (elapsed is > 0 and < 100)
+            {
+                var x = X(elapsed);
+                using var outline = new Pen(theme.Back, S(4));
+                using var marker = new Pen(theme.Fore, S(2));
+                g.DrawLine(outline, x, r.Top - S(3), x, r.Bottom + S(3));
+                g.DrawLine(marker, x, r.Top - S(3), x, r.Bottom + S(3));
+            }
+        }
     }
 
-    static void FillCapsule(Graphics g, Brush brush, Rectangle r)
+    static GraphicsPath Capsule(Rectangle r)
     {
-        using var path = new GraphicsPath();
+        var path = new GraphicsPath();
         var d = r.Height;
         path.AddArc(r.X, r.Y, d, d, 90, 180);
         path.AddArc(r.Right - d, r.Y, d, d, 270, 180);
         path.CloseFigure();
-        g.FillPath(brush, path);
+        return path;
     }
 
     [DllImport("dwmapi.dll")]

@@ -40,6 +40,7 @@ Requires macOS 13+ and [Claude Code](https://docs.claude.com/en/docs/claude-code
 The same app for the Windows system tray, with the same panel, pace projection and alerts:
 
 - the tray icon shows the session %; hover it for every limit. It turns orange when a limit's pace runs out before its reset and red from 90% used;
+- each bar also shows where the current pace ends at reset (hatched), ticks at 70% and 90%, and a white marker for how much of the window has passed: a fill left of the marker means you are using less than an even pace;
 - click the icon for the panel; Refresh is also Ctrl+R and Quit Ctrl+Q. Right-click the icon for Refresh, Open at login and Quit;
 - alerts arrive as Windows notifications, once per limit window, also across restarts;
 - open at login uses the per-user `Run` registry key, so it needs no admin rights. The app turns it on at first launch.
